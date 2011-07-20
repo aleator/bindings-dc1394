@@ -88,8 +88,18 @@ fromCF (CF a) = a
 -- | Join flags
 CF a &+ CF b = CF (a .&. b)
 
--- | Setup the camera for capturing
+-- | Set ISO speed
+setISOSpeed c iso = withCameraPtr c $ \camera -> 
+    checking $ c'dc1394_video_set_iso_speed camera (fromISO iso)
 
+setVideoMode c mode = withCameraPtr c $ \camera -> 
+    checking $ c'dc1394_video_set_mode camera (toVideoMode mode)
+
+setFrameRate c rate = withCameraPtr c $ \camera -> 
+    checking $ c'dc1394_video_set_framerate camera  (toFramerate rate)
+
+-- | Setup the camera for capturing
+setupCamera :: Camera -> Foreign.C.Types.CInt -> CaptureFlag -> IO ()
 setupCamera c dmaBuffers cf = withCameraPtr c $ \camera -> 
                                checking $ c'dc1394_capture_setup camera dmaBuffers (fromCF cf)
 
@@ -110,13 +120,11 @@ main = do
     print ("Trying camera", e)
     cam <- cameraFromID dc e-- c'dc1394_camera_new dc guid
     print ("Camera can do oneshots", oneShotCapable cam)
-    withCameraPtr cam $ \camera -> do
-        c'dc1394_video_set_iso_speed camera c'DC1394_ISO_SPEED_400 
-        c'dc1394_video_set_mode camera c'DC1394_VIDEO_MODE_640x480_RGB8
-        c'dc1394_video_set_framerate camera  c'DC1394_FRAMERATE_7_5
-    setupCamera cam 4 (defaultFlags &+ autoISO)
+    setISOSpeed  cam ISO_400
+    setVideoMode cam Mode_640x480_RGB8
+    setFrameRate cam Rate_3_75
+    setupCamera cam 4 (defaultFlags)
     startVideoTransmission cam
-    --    sizeFromMode camera c'DC1394_VIDEO_MODE_640x480_RGB8 >>= print
     
     
     getFrame cam >>= saveImage "testShot2-1.png"
@@ -124,12 +132,31 @@ main = do
     getFrame cam >>= saveImage "testShot2-3.png"
     
     
-    withCameraPtr cam $ \camera -> do
-        c'dc1394_video_set_transmission camera c'DC1394_OFF
     stopVideoTransmission cam
     stopCapture cam
 
 
+data ISOSpeed = 
+      ISO_100
+    | ISO_200
+    | ISO_400
+    | ISO_800
+    | ISO_1600
+    | ISO_3200
+
+fromISO ISO_100  = c'DC1394_ISO_SPEED_100 
+fromISO ISO_200  = c'DC1394_ISO_SPEED_200
+fromISO ISO_400  = c'DC1394_ISO_SPEED_400
+fromISO ISO_800  = c'DC1394_ISO_SPEED_800
+fromISO ISO_1600 = c'DC1394_ISO_SPEED_1600
+fromISO ISO_3200 = c'DC1394_ISO_SPEED_3200
+toISO i 
+    | i == c'DC1394_ISO_SPEED_100  = ISO_100   
+    | i == c'DC1394_ISO_SPEED_200  = ISO_200   
+    | i == c'DC1394_ISO_SPEED_400  = ISO_400   
+    | i == c'DC1394_ISO_SPEED_800  = ISO_800   
+    | i == c'DC1394_ISO_SPEED_1600 = ISO_1600  
+    | i == c'DC1394_ISO_SPEED_3200 = ISO_3200  
     
 
 data DCResult = 
@@ -216,43 +243,175 @@ fromResult BASLER_NO_MORE_SFF_CHUNKS  = c'DC1394_BASLER_NO_MORE_SFF_CHUNKS
 fromResult BASLER_CORRUPTED_SFF_CHUNK = c'DC1394_BASLER_CORRUPTED_SFF_CHUNK  
 fromResult BASLER_UNKNOWN_SFF_CHUNK   = c'DC1394_BASLER_UNKNOWN_SFF_CHUNK  
 
-toResult c'DC1394_SUCCESS                    = SUCCESS                     
-toResult c'DC1394_FAILURE                    = FAILURE                     
-toResult c'DC1394_NOT_A_CAMERA               = NOT_A_CAMERA                
-toResult c'DC1394_FUNCTION_NOT_SUPPORTED     = FUNCTION_NOT_SUPPORTED      
-toResult c'DC1394_CAMERA_NOT_INITIALIZED     = CAMERA_NOT_INITIALIZED      
-toResult c'DC1394_MEMORY_ALLOCATION_FAILURE  = MEMORY_ALLOCATION_FAILURE   
-toResult c'DC1394_TAGGED_REGISTER_NOT_FOUND  = TAGGED_REGISTER_NOT_FOUND   
-toResult c'DC1394_NO_ISO_CHANNEL             = NO_ISO_CHANNEL              
-toResult c'DC1394_NO_BANDWIDTH               = NO_BANDWIDTH                
-toResult c'DC1394_IOCTL_FAILURE              = IOCTL_FAILURE               
-toResult c'DC1394_CAPTURE_IS_NOT_SET         = CAPTURE_IS_NOT_SET          
-toResult c'DC1394_CAPTURE_IS_RUNNING         = CAPTURE_IS_RUNNING          
-toResult c'DC1394_RAW1394_FAILURE            = RAW1394_FAILURE             
-toResult c'DC1394_FORMAT7_ERROR_FLAG_1       = FORMAT7_ERROR_FLAG_1        
-toResult c'DC1394_FORMAT7_ERROR_FLAG_2       = FORMAT7_ERROR_FLAG_2        
-toResult c'DC1394_INVALID_ARGUMENT_VALUE     = INVALID_ARGUMENT_VALUE      
-toResult c'DC1394_REQ_VALUE_OUTSIDE_RANGE    = REQ_VALUE_OUTSIDE_RANGE     
-toResult c'DC1394_INVALID_FEATURE            = INVALID_FEATURE             
-toResult c'DC1394_INVALID_VIDEO_FORMAT       = INVALID_VIDEO_FORMAT        
-toResult c'DC1394_INVALID_VIDEO_MODE         = INVALID_VIDEO_MODE          
-toResult c'DC1394_INVALID_FRAMERATE          = INVALID_FRAMERATE           
-toResult c'DC1394_INVALID_TRIGGER_MODE       = INVALID_TRIGGER_MODE        
-toResult c'DC1394_INVALID_TRIGGER_SOURCE     = INVALID_TRIGGER_SOURCE      
-toResult c'DC1394_INVALID_ISO_SPEED          = INVALID_ISO_SPEED           
-toResult c'DC1394_INVALID_IIDC_VERSION       = INVALID_IIDC_VERSION        
-toResult c'DC1394_INVALID_COLOR_CODING       = INVALID_COLOR_CODING        
-toResult c'DC1394_INVALID_COLOR_FILTER       = INVALID_COLOR_FILTER        
-toResult c'DC1394_INVALID_CAPTURE_POLICY     = INVALID_CAPTURE_POLICY      
-toResult c'DC1394_INVALID_ERROR_CODE         = INVALID_ERROR_CODE          
-toResult c'DC1394_INVALID_BAYER_METHOD       = INVALID_BAYER_METHOD        
-toResult c'DC1394_INVALID_VIDEO1394_DEVICE   = INVALID_VIDEO1394_DEVICE    
-toResult c'DC1394_INVALID_OPERATION_MODE     = INVALID_OPERATION_MODE      
-toResult c'DC1394_INVALID_TRIGGER_POLARITY   = INVALID_TRIGGER_POLARITY    
-toResult c'DC1394_INVALID_FEATURE_MODE       = INVALID_FEATURE_MODE        
-toResult c'DC1394_INVALID_LOG_TYPE           = INVALID_LOG_TYPE            
-toResult c'DC1394_INVALID_BYTE_ORDER         = INVALID_BYTE_ORDER          
-toResult c'DC1394_INVALID_STEREO_METHOD      = INVALID_STEREO_METHOD       
-toResult c'DC1394_BASLER_NO_MORE_SFF_CHUNKS  = BASLER_NO_MORE_SFF_CHUNKS   
-toResult c'DC1394_BASLER_CORRUPTED_SFF_CHUNK = BASLER_CORRUPTED_SFF_CHUNK  
-toResult c'DC1394_BASLER_UNKNOWN_SFF_CHUNK   = BASLER_UNKNOWN_SFF_CHUNK  
+toResult r 
+   | r == c'DC1394_SUCCESS                    = SUCCESS                     
+   | r == c'DC1394_FAILURE                    = FAILURE                     
+   | r == c'DC1394_NOT_A_CAMERA               = NOT_A_CAMERA                
+   | r == c'DC1394_FUNCTION_NOT_SUPPORTED     = FUNCTION_NOT_SUPPORTED      
+   | r == c'DC1394_CAMERA_NOT_INITIALIZED     = CAMERA_NOT_INITIALIZED      
+   | r == c'DC1394_MEMORY_ALLOCATION_FAILURE  = MEMORY_ALLOCATION_FAILURE   
+   | r == c'DC1394_TAGGED_REGISTER_NOT_FOUND  = TAGGED_REGISTER_NOT_FOUND   
+   | r == c'DC1394_NO_ISO_CHANNEL             = NO_ISO_CHANNEL              
+   | r == c'DC1394_NO_BANDWIDTH               = NO_BANDWIDTH                
+   | r == c'DC1394_IOCTL_FAILURE              = IOCTL_FAILURE               
+   | r == c'DC1394_CAPTURE_IS_NOT_SET         = CAPTURE_IS_NOT_SET          
+   | r == c'DC1394_CAPTURE_IS_RUNNING         = CAPTURE_IS_RUNNING          
+   | r == c'DC1394_RAW1394_FAILURE            = RAW1394_FAILURE             
+   | r == c'DC1394_FORMAT7_ERROR_FLAG_1       = FORMAT7_ERROR_FLAG_1        
+   | r == c'DC1394_FORMAT7_ERROR_FLAG_2       = FORMAT7_ERROR_FLAG_2        
+   | r == c'DC1394_INVALID_ARGUMENT_VALUE     = INVALID_ARGUMENT_VALUE      
+   | r == c'DC1394_REQ_VALUE_OUTSIDE_RANGE    = REQ_VALUE_OUTSIDE_RANGE     
+   | r == c'DC1394_INVALID_FEATURE            = INVALID_FEATURE             
+   | r == c'DC1394_INVALID_VIDEO_FORMAT       = INVALID_VIDEO_FORMAT        
+   | r == c'DC1394_INVALID_VIDEO_MODE         = INVALID_VIDEO_MODE          
+   | r == c'DC1394_INVALID_FRAMERATE          = INVALID_FRAMERATE           
+   | r == c'DC1394_INVALID_TRIGGER_MODE       = INVALID_TRIGGER_MODE        
+   | r == c'DC1394_INVALID_TRIGGER_SOURCE     = INVALID_TRIGGER_SOURCE      
+   | r == c'DC1394_INVALID_ISO_SPEED          = INVALID_ISO_SPEED           
+   | r == c'DC1394_INVALID_IIDC_VERSION       = INVALID_IIDC_VERSION        
+   | r == c'DC1394_INVALID_COLOR_CODING       = INVALID_COLOR_CODING        
+   | r == c'DC1394_INVALID_COLOR_FILTER       = INVALID_COLOR_FILTER        
+   | r == c'DC1394_INVALID_CAPTURE_POLICY     = INVALID_CAPTURE_POLICY      
+   | r == c'DC1394_INVALID_ERROR_CODE         = INVALID_ERROR_CODE          
+   | r == c'DC1394_INVALID_BAYER_METHOD       = INVALID_BAYER_METHOD        
+   | r == c'DC1394_INVALID_VIDEO1394_DEVICE   = INVALID_VIDEO1394_DEVICE    
+   | r == c'DC1394_INVALID_OPERATION_MODE     = INVALID_OPERATION_MODE      
+   | r == c'DC1394_INVALID_TRIGGER_POLARITY   = INVALID_TRIGGER_POLARITY    
+   | r == c'DC1394_INVALID_FEATURE_MODE       = INVALID_FEATURE_MODE        
+   | r == c'DC1394_INVALID_LOG_TYPE           = INVALID_LOG_TYPE            
+   | r == c'DC1394_INVALID_BYTE_ORDER         = INVALID_BYTE_ORDER          
+   | r == c'DC1394_INVALID_STEREO_METHOD      = INVALID_STEREO_METHOD       
+   | r == c'DC1394_BASLER_NO_MORE_SFF_CHUNKS  = BASLER_NO_MORE_SFF_CHUNKS   
+   | r == c'DC1394_BASLER_CORRUPTED_SFF_CHUNK = BASLER_CORRUPTED_SFF_CHUNK  
+   | r == c'DC1394_BASLER_UNKNOWN_SFF_CHUNK   = BASLER_UNKNOWN_SFF_CHUNK  
+
+data VideoMode = Mode_160x120_YUV444 
+     | Mode_320x240_YUV422  
+     | Mode_640x480_YUV411  
+     | Mode_640x480_YUV422  
+     | Mode_640x480_RGB8  
+     | Mode_640x480_MONO8  
+     | Mode_640x480_MONO16  
+     | Mode_800x600_YUV422  
+     | Mode_800x600_RGB8  
+     | Mode_800x600_MONO8  
+     | Mode_1024x768_YUV422  
+     | Mode_1024x768_RGB8  
+     | Mode_1024x768_MONO8  
+     | Mode_800x600_MONO16  
+     | Mode_1024x768_MONO16  
+     | Mode_1280x960_YUV422  
+     | Mode_1280x960_RGB8  
+     | Mode_1280x960_MONO8  
+     | Mode_1600x1200_YUV422  
+     | Mode_1600x1200_RGB8  
+     | Mode_1600x1200_MONO8  
+     | Mode_1280x960_MONO16  
+     | Mode_1600x1200_MONO16  
+     | Mode_EXIF  
+     | Mode_FORMAT7_0  
+     | Mode_FORMAT7_1  
+     | Mode_FORMAT7_2  
+     | Mode_FORMAT7_3  
+     | Mode_FORMAT7_4  
+     | Mode_FORMAT7_5  
+     | Mode_FORMAT7_6  
+     | Mode_FORMAT7_7 
+      deriving (Show,Eq)
+
+fromVideoMode Mode_160x120_YUV444 = c'DC1394_VIDEO_MODE_160x120_YUV444  
+fromVideoMode Mode_320x240_YUV422 = c'DC1394_VIDEO_MODE_320x240_YUV422  
+fromVideoMode Mode_640x480_YUV411 = c'DC1394_VIDEO_MODE_640x480_YUV411  
+fromVideoMode Mode_640x480_YUV422 = c'DC1394_VIDEO_MODE_640x480_YUV422  
+fromVideoMode Mode_640x480_RGB8 = c'DC1394_VIDEO_MODE_640x480_RGB8  
+fromVideoMode Mode_640x480_MONO8 = c'DC1394_VIDEO_MODE_640x480_MONO8  
+fromVideoMode Mode_640x480_MONO16 = c'DC1394_VIDEO_MODE_640x480_MONO16  
+fromVideoMode Mode_800x600_YUV422 = c'DC1394_VIDEO_MODE_800x600_YUV422  
+fromVideoMode Mode_800x600_RGB8 = c'DC1394_VIDEO_MODE_800x600_RGB8  
+fromVideoMode Mode_800x600_MONO8 = c'DC1394_VIDEO_MODE_800x600_MONO8  
+fromVideoMode Mode_1024x768_YUV422 = c'DC1394_VIDEO_MODE_1024x768_YUV422  
+fromVideoMode Mode_1024x768_RGB8 = c'DC1394_VIDEO_MODE_1024x768_RGB8  
+fromVideoMode Mode_1024x768_MONO8 = c'DC1394_VIDEO_MODE_1024x768_MONO8  
+fromVideoMode Mode_800x600_MONO16 = c'DC1394_VIDEO_MODE_800x600_MONO16  
+fromVideoMode Mode_1024x768_MONO16 = c'DC1394_VIDEO_MODE_1024x768_MONO16  
+fromVideoMode Mode_1280x960_YUV422 = c'DC1394_VIDEO_MODE_1280x960_YUV422  
+fromVideoMode Mode_1280x960_RGB8 = c'DC1394_VIDEO_MODE_1280x960_RGB8  
+fromVideoMode Mode_1280x960_MONO8 = c'DC1394_VIDEO_MODE_1280x960_MONO8  
+fromVideoMode Mode_1600x1200_YUV422 = c'DC1394_VIDEO_MODE_1600x1200_YUV422  
+fromVideoMode Mode_1600x1200_RGB8 = c'DC1394_VIDEO_MODE_1600x1200_RGB8  
+fromVideoMode Mode_1600x1200_MONO8 = c'DC1394_VIDEO_MODE_1600x1200_MONO8  
+fromVideoMode Mode_1280x960_MONO16 = c'DC1394_VIDEO_MODE_1280x960_MONO16  
+fromVideoMode Mode_1600x1200_MONO16 = c'DC1394_VIDEO_MODE_1600x1200_MONO16  
+fromVideoMode Mode_EXIF = c'DC1394_VIDEO_MODE_EXIF  
+fromVideoMode Mode_FORMAT7_0 = c'DC1394_VIDEO_MODE_FORMAT7_0  
+fromVideoMode Mode_FORMAT7_1 = c'DC1394_VIDEO_MODE_FORMAT7_1  
+fromVideoMode Mode_FORMAT7_2 = c'DC1394_VIDEO_MODE_FORMAT7_2  
+fromVideoMode Mode_FORMAT7_3 = c'DC1394_VIDEO_MODE_FORMAT7_3  
+fromVideoMode Mode_FORMAT7_4 = c'DC1394_VIDEO_MODE_FORMAT7_4  
+fromVideoMode Mode_FORMAT7_5 = c'DC1394_VIDEO_MODE_FORMAT7_5  
+fromVideoMode Mode_FORMAT7_6 = c'DC1394_VIDEO_MODE_FORMAT7_6  
+fromVideoMode Mode_FORMAT7_7 = c'DC1394_VIDEO_MODE_FORMAT7_7 
+
+toVideoMode i 
+  | i == Mode_160x120_YUV444 = c'DC1394_VIDEO_MODE_160x120_YUV444  
+  | i == Mode_320x240_YUV422 = c'DC1394_VIDEO_MODE_320x240_YUV422  
+  | i == Mode_640x480_YUV411 = c'DC1394_VIDEO_MODE_640x480_YUV411  
+  | i == Mode_640x480_YUV422 = c'DC1394_VIDEO_MODE_640x480_YUV422  
+  | i == Mode_640x480_RGB8 = c'DC1394_VIDEO_MODE_640x480_RGB8  
+  | i == Mode_640x480_MONO8 = c'DC1394_VIDEO_MODE_640x480_MONO8  
+  | i == Mode_640x480_MONO16 = c'DC1394_VIDEO_MODE_640x480_MONO16  
+  | i == Mode_800x600_YUV422 = c'DC1394_VIDEO_MODE_800x600_YUV422  
+  | i == Mode_800x600_RGB8 = c'DC1394_VIDEO_MODE_800x600_RGB8  
+  | i == Mode_800x600_MONO8 = c'DC1394_VIDEO_MODE_800x600_MONO8  
+  | i == Mode_1024x768_YUV422 = c'DC1394_VIDEO_MODE_1024x768_YUV422  
+  | i == Mode_1024x768_RGB8 = c'DC1394_VIDEO_MODE_1024x768_RGB8  
+  | i == Mode_1024x768_MONO8 = c'DC1394_VIDEO_MODE_1024x768_MONO8  
+  | i == Mode_800x600_MONO16 = c'DC1394_VIDEO_MODE_800x600_MONO16  
+  | i == Mode_1024x768_MONO16 = c'DC1394_VIDEO_MODE_1024x768_MONO16  
+  | i == Mode_1280x960_YUV422 = c'DC1394_VIDEO_MODE_1280x960_YUV422  
+  | i == Mode_1280x960_RGB8 = c'DC1394_VIDEO_MODE_1280x960_RGB8  
+  | i == Mode_1280x960_MONO8 = c'DC1394_VIDEO_MODE_1280x960_MONO8  
+  | i == Mode_1600x1200_YUV422 = c'DC1394_VIDEO_MODE_1600x1200_YUV422  
+  | i == Mode_1600x1200_RGB8 = c'DC1394_VIDEO_MODE_1600x1200_RGB8  
+  | i == Mode_1600x1200_MONO8 = c'DC1394_VIDEO_MODE_1600x1200_MONO8  
+  | i == Mode_1280x960_MONO16 = c'DC1394_VIDEO_MODE_1280x960_MONO16  
+  | i == Mode_1600x1200_MONO16 = c'DC1394_VIDEO_MODE_1600x1200_MONO16  
+  | i == Mode_EXIF = c'DC1394_VIDEO_MODE_EXIF  
+  | i == Mode_FORMAT7_0 = c'DC1394_VIDEO_MODE_FORMAT7_0  
+  | i == Mode_FORMAT7_1 = c'DC1394_VIDEO_MODE_FORMAT7_1  
+  | i == Mode_FORMAT7_2 = c'DC1394_VIDEO_MODE_FORMAT7_2  
+  | i == Mode_FORMAT7_3 = c'DC1394_VIDEO_MODE_FORMAT7_3  
+  | i == Mode_FORMAT7_4 = c'DC1394_VIDEO_MODE_FORMAT7_4  
+  | i == Mode_FORMAT7_5 = c'DC1394_VIDEO_MODE_FORMAT7_5  
+  | i == Mode_FORMAT7_6 = c'DC1394_VIDEO_MODE_FORMAT7_6  
+  | i == Mode_FORMAT7_7 = c'DC1394_VIDEO_MODE_FORMAT7_7 
+
+data Framerate = Rate_1_875 
+     | Rate_3_75  
+     | Rate_7_5  
+     | Rate_15  
+     | Rate_30  
+     | Rate_60  
+     | Rate_120  
+     | Rate_240 
+      deriving (Show,Eq)
+
+fromFramerate Rate_1_875 = c'DC1394_FRAMERATE_1_875  
+fromFramerate Rate_3_75 = c'DC1394_FRAMERATE_3_75  
+fromFramerate Rate_7_5 = c'DC1394_FRAMERATE_7_5  
+fromFramerate Rate_15 = c'DC1394_FRAMERATE_15  
+fromFramerate Rate_30 = c'DC1394_FRAMERATE_30  
+fromFramerate Rate_60 = c'DC1394_FRAMERATE_60  
+fromFramerate Rate_120 = c'DC1394_FRAMERATE_120  
+fromFramerate Rate_240 = c'DC1394_FRAMERATE_240 
+
+toFramerate i 
+  | i == Rate_1_875 = c'DC1394_FRAMERATE_1_875  
+  | i == Rate_3_75 = c'DC1394_FRAMERATE_3_75  
+  | i == Rate_7_5 = c'DC1394_FRAMERATE_7_5  
+  | i == Rate_15 = c'DC1394_FRAMERATE_15  
+  | i == Rate_30 = c'DC1394_FRAMERATE_30  
+  | i == Rate_60 = c'DC1394_FRAMERATE_60  
+  | i == Rate_120 = c'DC1394_FRAMERATE_120  
+  | i == Rate_240 = c'DC1394_FRAMERATE_240 
+
