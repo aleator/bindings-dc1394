@@ -22,31 +22,71 @@ import Foreign.Storable.Tuple
 import System.IO.Unsafe
 import qualified Data.ByteString.Char8 as B
 
+import Data.Enumerator hiding (peek)
+import qualified Data.Enumerator.List as E
+import Control.Monad.Trans
 
 
+
+getIds :: C'dc1394camera_list_t -> IO [C'dc1394camera_id_t]
 getIds camList = peekArray (fromIntegral $ c'dc1394camera_list_t'num camList)
                            (c'dc1394camera_list_t'ids camList)
 
-getCameras dc = alloca $ \list -> bracket 
-            (c'dc1394_camera_enumerate dc list)
-            (\_ -> peek list >>= c'dc1394_camera_free_list)
-            (\_ -> peek list >>= peek >>= getIds) -- TODO: Errors
 
-getFrame camera' = alloca $ \framePtr ->
+type CameraId = C'dc1394camera_id_t
+
+-- | Get list of available cameras
+getCameras :: DC1394 -> IO [CameraId]
+getCameras dc = 
+            withDC1394 dc $ \c_dc ->
+            alloca $ \list        -> bracket 
+               (checking $ c'dc1394_camera_enumerate c_dc list)
+               (\_ -> peek list >>= c'dc1394_camera_free_list)
+               (\_ -> peek list >>= peek >>= getIds) 
+
+-- | Grab a frame from the camera. Currently does only 640x480 RGB D8 Images.
+getFrame :: Camera -> IO (Maybe (Image RGB D8))
+getFrame camera' = alloca $ \(framePtr :: Ptr (Ptr (C'dc1394video_frame_t))) ->
                     withCameraPtr camera' $ \camera -> do
+
+    mode <- getMode camera
+    when (mode /= c'DC1394_VIDEO_MODE_640x480_RGB8) $ error "Unsupported mode. Use 640x480 RGB8 for now"
+
     c'dc1394_capture_dequeue camera  c'DC1394_CAPTURE_POLICY_WAIT framePtr
-    dataPtr <- c'dc1394video_frame_t'image <$> (peek framePtr >>= peek)
-    return $ unsafe8UC3FromPtr (640,480) dataPtr
+    frameP  :: Ptr C'dc1394video_frame_t <- peek framePtr
+
+    if frameP == nullPtr  -- Perhaps there was no frame available?
+        then c'dc1394_capture_enqueue camera frameP >> return Nothing
+        else do   
+                --corrupt <- c'dc1394_capture_is_frame_corrupt camera frameP -- Or it was corrupted?
+                -- For some reason this seems always true on os x
+                let corrupt = 0
+                case corrupt of
+                    0 -> do -- Yay! A frame!
+                           dataPtr <- c'dc1394video_frame_t'image <$> (peek framePtr >>= peek)
+                           r <- unsafe8UC3FromPtr (640,480) dataPtr
+                           c'dc1394_capture_enqueue camera frameP
+                           return . Just $ r
+                    _ -> c'dc1394_capture_enqueue camera frameP >> return Nothing
+
+
+
+getMode :: Ptr C'dc1394camera_t -> IO CInt
+getMode camera = alloca $ \(mode :: Ptr CInt) -> do 
+                    c'dc1394_video_get_mode camera mode
+                    peek mode
 
 sizeFromMode camera mode = alloca $ \w -> alloca $ \h -> do
     c'dc1394_get_image_size_from_video_mode camera mode w h
     (,) <$> peek w <*> peek h 
 
 
+-- | Abstract type for cameras
 data Camera = Camera (ForeignPtr C'dc1394camera_t)
 
 -- | Create Camera from ID. Although the camera type is memory managed, the user is required
 -- to stop data transfer and reset appropriate settings. Finalizers are not quaranteed to run.
+cameraFromID :: DC1394 -> C'dc1394camera_id_t -> IO Camera
 cameraFromID dc e = do
     let guid = c'dc1394camera_id_t'guid e
     camera <- withDC1394 dc $ \c_dc -> c'dc1394_camera_new c_dc guid
@@ -57,28 +97,39 @@ cameraFromID dc e = do
 withCameraPtr (Camera fptr) op = withForeignPtr fptr op
 withCamera    (Camera fptr) op = withForeignPtr fptr (\ptr -> peek ptr >>= op)
 
+-- | DC1394 context used for creating cameras, etc.
 newtype DC1394 = DC1394 (ForeignPtr C'dc1394_t)
 
+-- | Create a new DC1394 context
+getDC1394 :: IO DC1394
 getDC1394 = do
     dc <- c'dc1394_new 
     when (dc==nullPtr) $ error "Could not get dc1394 context"
     DC1394 <$> newForeignPtr dc (c'dc1394_free dc)
 
+withDC1394 :: DC1394 -> (Ptr C'dc1394_t -> IO b) -> IO b
 withDC1394 (DC1394 fptr) op = withForeignPtr fptr op
 
 -- | Set the video transmission on
+startVideoTransmission :: Camera -> IO ()
 startVideoTransmission c = withCameraPtr c $ \camera -> checking $ c'dc1394_video_set_transmission camera c'DC1394_ON
 
 -- | Set the video transmission off
+stopVideoTransmission :: Camera -> IO ()
 stopVideoTransmission c = withCameraPtr c $ \camera -> checking $ c'dc1394_video_set_transmission camera c'DC1394_OFF
 
 -- | Stop capturing
+stopCapture :: Camera -> IO ()
 stopCapture c = withCameraPtr c $ \camera -> checking $ c'dc1394_capture_stop camera
 
 -- | Does the camera have one-shot functionality?
+oneShotCapable :: Camera -> Bool
 oneShotCapable camera = unsafePerformIO $ withCamera camera (return . itob . c'dc1394camera_t'one_shot_capable)
 
+-- | Type for capture flags
 newtype CaptureFlag = CF CInt
+channelAlloc,  candwidthAlloc, defaultFlags,  autoISO :: CaptureFlag       
+
 channelAlloc   = CF c'DC1394_CAPTURE_FLAGS_CHANNEL_ALLOC   
 candwidthAlloc = CF c'DC1394_CAPTURE_FLAGS_BANDWIDTH_ALLOC 
 defaultFlags   = CF c'DC1394_CAPTURE_FLAGS_DEFAULT         
@@ -89,48 +140,77 @@ fromCF (CF a) = a
 CF a &+ CF b = CF (a .&. b)
 
 -- | Set ISO speed
+setISOSpeed :: Camera -> ISOSpeed -> IO ()
 setISOSpeed c iso = withCameraPtr c $ \camera -> 
     checking $ c'dc1394_video_set_iso_speed camera (fromISO iso)
 
+-- | Set the video mode
+setVideoMode :: Camera -> VideoMode -> IO ()
 setVideoMode c mode = withCameraPtr c $ \camera -> 
     checking $ c'dc1394_video_set_mode camera (toVideoMode mode)
 
+-- | Set the frame rate
+setFrameRate :: Camera -> Framerate -> IO ()
 setFrameRate c rate = withCameraPtr c $ \camera -> 
     checking $ c'dc1394_video_set_framerate camera  (toFramerate rate)
 
 -- | Setup the camera for capturing
-setupCamera :: Camera -> Foreign.C.Types.CInt -> CaptureFlag -> IO ()
+setupCamera :: Camera -> CInt -> CaptureFlag -> IO ()
 setupCamera c dmaBuffers cf = withCameraPtr c $ \camera -> 
-                               checking $ c'dc1394_capture_setup camera dmaBuffers (fromCF cf)
+                               checking $ c'dc1394_capture_setup camera 
+                                                                 (fromIntegral dmaBuffers) (fromCF cf)
 
+-- | Execute a libdc1394 function and check for the error code. Currently raises the error as 
+--   UserError, but in future might provide a more reasonable error hierarchy.
+checking :: IO CInt -> IO ()
 checking op = do 
     r <- toResult <$>op
     case r of
         SUCCESS -> return ()
         e   -> error (show e)
 
-
 itob 0 = False
 itob _ = True
 
+enumCamera
+  :: MonadIO m =>
+     Camera -> Step (Image RGB D8) m b -> Iteratee (Image RGB D8) m b
+enumCamera camera = loop 
+    where
+     loop (Continue k) = do
+                            x <- liftIO $ getFrame camera
+                            case x of
+                                Just i -> k (Chunks [i]) >>== loop  
+                                Nothing -> k (Chunks []) >>== loop 
+     loop s = returnI s
+
+save :: Iteratee (Image RGB D8) IO ()
+save = continue $ go 0
+ where
+    go :: Int -> Stream (Image RGB D8) -> Iteratee (Image RGB D8) IO ()
+    go n (Chunks []) = liftIO (print "No-SNAP") >> continue (go (n))
+    go n (Chunks [i]) = liftIO (print "SNAP") >> liftIO (saveImage ("img_"++show n++".png") i) >> continue (go (n+1))
+    go n a = yield () a 
+
+
+saveClip c = enumCamera c $$ (E.isolate 10 =$ save)
+
 main = do
     dc <- getDC1394 --c'dc1394_new 
-    (e:_) <- withDC1394 dc getCameras 
+    (e:_) <- getCameras dc
     print e
     print ("Trying camera", e)
     cam <- cameraFromID dc e-- c'dc1394_camera_new dc guid
     print ("Camera can do oneshots", oneShotCapable cam)
     setISOSpeed  cam ISO_400
     setVideoMode cam Mode_640x480_RGB8
-    setFrameRate cam Rate_3_75
+    setFrameRate cam Rate_7_5
     setupCamera cam 4 (defaultFlags)
     startVideoTransmission cam
     
-    
-    getFrame cam >>= saveImage "testShot2-1.png"
-    getFrame cam >>= saveImage "testShot2-2.png"
-    getFrame cam >>= saveImage "testShot2-3.png"
-    
+    run_ (saveClip cam)
+   -- getFrame cam >>= saveImage "testShot2-1.png"
+   -- getFrame cam >>= saveImage "testShot2-3.png"
     
     stopVideoTransmission cam
     stopCapture cam

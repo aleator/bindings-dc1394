@@ -104,13 +104,21 @@ import Data.Word
 -- * Setting camera properties
 #ccall dc1394_video_set_transmission , Ptr <dc1394camera_t> -> CInt -> IO CInt
 #ccall dc1394_video_set_iso_speed , Ptr <dc1394camera_t> -> CInt -> IO CInt
+
 #ccall dc1394_video_set_mode  , Ptr <dc1394camera_t> -> CInt -> IO CInt
+#ccall dc1394_video_get_mode  , Ptr <dc1394camera_t> -> Ptr CInt -> IO CInt
+
 #ccall dc1394_video_set_framerate , Ptr <dc1394camera_t> -> CInt -> IO CInt
+
+-- * Features
+-- #ccall dc1394_feature_get_all, Ptr <dc1394camera_t> -> 
 
 -- * Capturing frames
 #ccall dc1394_capture_stop , Ptr <dc1394camera_t> -> IO CInt
 #ccall dc1394_capture_setup       , Ptr <dc1394camera_t> -> CInt -> CInt -> IO CInt
 #ccall dc1394_capture_dequeue , Ptr <dc1394camera_t> -> CInt -> Ptr (Ptr <dc1394video_frame_t>) -> IO CInt
+#ccall dc1394_capture_enqueue , Ptr <dc1394camera_t> -> (Ptr <dc1394video_frame_t>) -> IO CInt
+#ccall dc1394_capture_is_frame_corrupt, Ptr <dc1394camera_t> -> Ptr <dc1394video_frame_t> -> IO CInt
 
 -- * Auxiliary
 #ccall dc1394_get_image_size_from_video_mode , Ptr <dc1394camera_t> -> CInt -> Ptr Word32 -> Ptr Word32 -> IO CInt
