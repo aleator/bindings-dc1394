@@ -1,5 +1,5 @@
 Name:                bindings-dc1394
-Version:             0.1
+Version:             0.2
 Synopsis:            Library for using firewire (iidc-1394) cameras
 Description:         Low level bindings for libdc1394 (for driving firewire cameras).
     .
