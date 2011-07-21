@@ -1,0 +1,5 @@
+dist/
+Examples/*.png
+*.swp
+*.hi
+*.o

@@ -27,7 +27,6 @@ import qualified Data.Enumerator.List as E
 import Control.Monad.Trans
 
 
-
 getIds :: C'dc1394camera_list_t -> IO [C'dc1394camera_id_t]
 getIds camList = peekArray (fromIntegral $ c'dc1394camera_list_t'num camList)
                            (c'dc1394camera_list_t'ids camList)
