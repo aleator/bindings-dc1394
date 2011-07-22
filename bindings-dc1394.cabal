@@ -22,7 +22,7 @@ Library
     Bindings.DC1394
   Build-depends: 
     bindings-DSL >= 1.0.7 && < 1.1,
-    base         > 4 && <5,
+    base         > 4 && <5
   Build-tools: c2hs >= 0.16.0
   Includes:    dc1394/dc1394.h
   Extra-Libraries: dc1394
