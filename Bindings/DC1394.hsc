@@ -19,7 +19,7 @@ import Data.Word
 #field ids , Ptr <dc1394camera_id_t>
 #stoptype
 
--- dc1394switch_t
+#integral_t dc1394switch_t
 #num DC1394_OFF
 #num DC1394_ON
 
@@ -119,6 +119,24 @@ import Data.Word
 #ccall dc1394_capture_dequeue , Ptr <dc1394camera_t> -> CInt -> Ptr (Ptr <dc1394video_frame_t>) -> IO CInt
 #ccall dc1394_capture_enqueue , Ptr <dc1394camera_t> -> (Ptr <dc1394video_frame_t>) -> IO CInt
 #ccall dc1394_capture_is_frame_corrupt, Ptr <dc1394camera_t> -> Ptr <dc1394video_frame_t> -> IO CInt
+
+-- * Camera control
+#ccall dc1394_camera_reset, Ptr <dc1394camera_t> -> IO CInt
+#ccall dc1394_avt_reset, Ptr <dc1394camera_t> -> IO <dc1394error_t>
+#ccall dc1394_reset_bus, Ptr <dc1394camera_t> -> IO <dc1394error_t>
+#ccall dc1394_set_power, Ptr <dc1394camera_t> -> <dc1394switch_t> -> IO <dc1394error_t>
+
+-- * Operation modes
+
+#integral_t dc1394operation_mode_t
+#integral_t dc1394error_t
+#num DC1394_OPERATION_MODE_LEGACY
+#num DC1394_OPERATION_MODE_1394B
+
+-- Gets the current operation mode.
+#ccall dc1394_video_get_operation_mode, Ptr <dc1394camera_t> ->  Ptr <dc1394operation_mode_t> -> IO <dc1394error_t> 
+-- Sets the current operation mode.
+#ccall dc1394_video_set_operation_mode, Ptr <dc1394camera_t> ->  <dc1394operation_mode_t> -> IO <dc1394error_t> 
 
 -- * Auxiliary
 #ccall dc1394_get_image_size_from_video_mode , Ptr <dc1394camera_t> -> CInt -> Ptr Word32 -> Ptr Word32 -> IO CInt
