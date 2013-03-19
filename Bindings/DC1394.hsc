@@ -113,6 +113,10 @@ import Data.Word
 -- * Features
 -- #ccall dc1394_feature_get_all, Ptr <dc1394camera_t> -> 
 
+-- * Format_7
+
+
+
 -- * Capturing frames
 #ccall dc1394_capture_stop , Ptr <dc1394camera_t> -> IO CInt
 #ccall dc1394_capture_setup       , Ptr <dc1394camera_t> -> CInt -> CInt -> IO CInt
@@ -124,7 +128,7 @@ import Data.Word
 #ccall dc1394_camera_reset, Ptr <dc1394camera_t> -> IO CInt
 #ccall dc1394_avt_reset, Ptr <dc1394camera_t> -> IO <dc1394error_t>
 #ccall dc1394_reset_bus, Ptr <dc1394camera_t> -> IO <dc1394error_t>
-#ccall dc1394_set_power, Ptr <dc1394camera_t> -> <dc1394switch_t> -> IO <dc1394error_t>
+#ccall dc1394_camera_set_power, Ptr <dc1394camera_t> -> <dc1394switch_t> -> IO <dc1394error_t>
 
 -- * Operation modes
 
