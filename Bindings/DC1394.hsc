@@ -130,6 +130,13 @@ import Data.Word
 #ccall dc1394_reset_bus, Ptr <dc1394camera_t> -> IO <dc1394error_t>
 #ccall dc1394_camera_set_power, Ptr <dc1394camera_t> -> <dc1394switch_t> -> IO <dc1394error_t>
 
+
+#integral_t dc1394feature_t
+#ccall dc1394_feature_set_value, Ptr <dc1394camera_t> -> <dc1394feature_t> -> CUInt -> IO <dc1394error_t>
+
+#ccall dc1394_feature_get_value, Ptr <dc1394camera_t> -> <dc1394feature_t> -> Ptr CUInt -> IO <dc1394error_t>
+
+
 -- * Operation modes
 
 #integral_t dc1394operation_mode_t
@@ -144,6 +151,30 @@ import Data.Word
 
 -- * Auxiliary
 #ccall dc1394_get_image_size_from_video_mode , Ptr <dc1394camera_t> -> CInt -> Ptr Word32 -> Ptr Word32 -> IO CInt
+
+-- * Constants
+#num DC1394_FEATURE_BRIGHTNESS
+#num DC1394_FEATURE_EXPOSURE
+#num DC1394_FEATURE_SHARPNESS
+#num DC1394_FEATURE_WHITE_BALANCE
+#num DC1394_FEATURE_HUE
+#num DC1394_FEATURE_SATURATION
+#num DC1394_FEATURE_GAMMA
+#num DC1394_FEATURE_SHUTTER
+#num DC1394_FEATURE_GAIN
+#num DC1394_FEATURE_IRIS
+#num DC1394_FEATURE_FOCUS
+#num DC1394_FEATURE_TEMPERATURE
+#num DC1394_FEATURE_TRIGGER
+#num DC1394_FEATURE_TRIGGER_DELAY
+#num DC1394_FEATURE_WHITE_SHADING
+#num DC1394_FEATURE_FRAME_RATE
+#num DC1394_FEATURE_ZOOM
+#num DC1394_FEATURE_PAN
+#num DC1394_FEATURE_TILT
+#num DC1394_FEATURE_OPTICAL_FILTER
+#num DC1394_FEATURE_CAPTURE_SIZE
+#num DC1394_FEATURE_CAPTURE_QUALITY
 
 #num DC1394_ISO_SPEED_100
 #num DC1394_ISO_SPEED_200
