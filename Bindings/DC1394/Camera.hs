@@ -33,7 +33,9 @@ withFirewireCamera :: ISOSpeed         -- ^ ISO rating for light sensitivityo
 withFirewireCamera speed mode rate dmaBufferSize captureFlags action = do
     -- use dc1394 bindings to set up camera
     dc <- getDC1394 --c'dc1394_new 
-    (e:_) <- getCameras dc
+    xs <- getCameras dc
+    when (null xs) (error "withFirewireCamera: unable to find camera")
+    let e = head xs
     cam <- cameraFromID dc e -- c'dc1394_camera_new dc guid
     setISOSpeed  cam speed
     setVideoMode cam mode
