@@ -1,6 +1,6 @@
 {-#LANGUAGE ScopedTypeVariables#-}
 
-module Bindings.DC1394.CameraOps where
+module Bindings.DC1394.Camera where
 
 import Bindings.DC1394
 import Bindings.DC1394.Types
@@ -14,14 +14,50 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.Word
 import System.IO.Unsafe
+
+-- | wrapper around dc1394 bindings that sets up a firewire
+--   camera, performs the user action with the camera, then
+--   stops the transmission and stops the camera. This wrapper
+--   calls 'setVideMode' 'setFrameRate' 'setupCamera' and 'startVideoTransmission'
+--   before executing the IO action, then the firewire resource
+--   is closed with 'stopVideoTransmission' and 'stopCapture'.
+withFirewireCamera :: ISOSpeed         -- ^ ISO rating for light sensitivityo
+           -> VideoMode        -- ^ video mode
+           -> Framerate        -- ^ capture frame rate
+           -> CInt             -- ^ DMA buffer size
+           -> CaptureFlag      -- ^ capture flags
+           -> (Camera -> IO a) -- ^ IO action using a camera
+           -> IO ()
+withFirewireCamera speed mode rate dmaBufferSize captureFlags action = do
+    -- use dc1394 bindings to set up camera
+    dc <- getDC1394 --c'dc1394_new 
+    (e:_) <- getCameras dc
+    cam <- cameraFromID dc e -- c'dc1394_camera_new dc guid
+    setISOSpeed  cam speed
+    setVideoMode cam mode
+    setFrameRate cam rate
+    setupCamera
+      cam           -- camera
+      dmaBufferSize -- DMA buffers
+      captureFlags  -- capture flag
+    startVideoTransmission cam
+
+    -- perform user action with the camera
+    void (action cam)
+
+    -- use dc1394 bindings to stop the camera
+    stopVideoTransmission cam
+    stopCapture cam
 
 getMode :: Ptr C'dc1394camera_t -> IO CInt
 getMode camera = alloca $ \(mode :: Ptr CInt) -> do 
-                    c'dc1394_video_get_mode camera mode
+                    void (c'dc1394_video_get_mode camera mode)
                     peek mode
 
 -- | Join flags
+(&+) :: CaptureFlag -> CaptureFlag -> CaptureFlag
 CF a &+ CF b = CF (a .&. b)
 
 -- | Set ISO speed
@@ -54,6 +90,7 @@ checking op = do
         SUCCESS -> return ()
         e   -> error (show e)
 
+itob :: forall a. (Eq a, Num a) => a -> Bool
 itob 0 = False
 itob _ = True
 
@@ -70,8 +107,9 @@ getCameras dc =
                (\_ -> peek list >>= c'dc1394_camera_free_list)
                (\_ -> peek list >>= peek >>= getIds) 
 
+sizeFromMode :: Ptr C'dc1394camera_t -> CInt -> IO (Word32, Word32)
 sizeFromMode camera mode = alloca $ \w -> alloca $ \h -> do
-    c'dc1394_get_image_size_from_video_mode camera mode w h
+    void (c'dc1394_get_image_size_from_video_mode camera mode w h)
     (,) <$> peek w <*> peek h 
 
 -- | Create Camera from ID. Although the camera type is memory managed, the user is required
@@ -84,8 +122,11 @@ cameraFromID dc e = do
     Camera <$> newForeignPtr camera (c'dc1394_camera_free camera)
     -- #TODO What else should be cleaned up?
 
-withCameraPtr (Camera fptr)    = withForeignPtr fptr
-withCamera    (Camera fptr) op = withForeignPtr fptr (peek >=> op)
+withCameraPtr :: Camera -> (Ptr C'dc1394camera_t -> IO b) -> IO b
+withCameraPtr     (Camera fptr)    = withForeignPtr fptr
+
+withCameraPtrPeek :: Camera -> (C'dc1394camera_t -> IO b) -> IO b
+withCameraPtrPeek (Camera fptr) op = withForeignPtr fptr (peek >=> op)
 
 -- | Create a new DC1394 context
 getDC1394 :: IO DC1394
@@ -111,4 +152,4 @@ stopCapture c = withCameraPtr c $ \camera -> checking $ c'dc1394_capture_stop ca
 
 -- | Does the camera have one-shot functionality?
 oneShotCapable :: Camera -> Bool
-oneShotCapable camera = unsafePerformIO $ withCamera camera (return . itob . c'dc1394camera_t'one_shot_capable)
+oneShotCapable camera = unsafePerformIO $ withCameraPtrPeek camera (return . itob . c'dc1394camera_t'one_shot_capable)

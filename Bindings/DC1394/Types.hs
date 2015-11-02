@@ -21,6 +21,8 @@ channelAlloc   = CF c'DC1394_CAPTURE_FLAGS_CHANNEL_ALLOC
 candwidthAlloc = CF c'DC1394_CAPTURE_FLAGS_BANDWIDTH_ALLOC 
 defaultFlags   = CF c'DC1394_CAPTURE_FLAGS_DEFAULT         
 autoISO        = CF c'DC1394_CAPTURE_FLAGS_AUTO_ISO        
+
+fromCF :: CaptureFlag -> CInt
 fromCF (CF a) = a
 
 data ISOSpeed = 
@@ -31,12 +33,15 @@ data ISOSpeed =
     | ISO_1600
     | ISO_3200
 
+fromISO :: Num a => ISOSpeed -> a
 fromISO ISO_100  = c'DC1394_ISO_SPEED_100 
 fromISO ISO_200  = c'DC1394_ISO_SPEED_200
 fromISO ISO_400  = c'DC1394_ISO_SPEED_400
 fromISO ISO_800  = c'DC1394_ISO_SPEED_800
 fromISO ISO_1600 = c'DC1394_ISO_SPEED_1600
 fromISO ISO_3200 = c'DC1394_ISO_SPEED_3200
+
+toISO :: (Eq a, Num a, Show a) => a -> ISOSpeed
 toISO i 
     | i == c'DC1394_ISO_SPEED_100  = ISO_100   
     | i == c'DC1394_ISO_SPEED_200  = ISO_200   
@@ -44,7 +49,7 @@ toISO i
     | i == c'DC1394_ISO_SPEED_800  = ISO_800   
     | i == c'DC1394_ISO_SPEED_1600 = ISO_1600  
     | i == c'DC1394_ISO_SPEED_3200 = ISO_3200  
-    
+    | otherwise = error ("toISO: argument invalid " ++ show i)
 
 data DCResult = 
     SUCCESS                     
@@ -89,6 +94,7 @@ data DCResult =
   | BASLER_UNKNOWN_SFF_CHUNK  
   deriving (Show)
 
+fromResult :: Num a => DCResult -> a
 fromResult SUCCESS                    = c'DC1394_SUCCESS                     
 fromResult FAILURE                    = c'DC1394_FAILURE                     
 fromResult NOT_A_CAMERA               = c'DC1394_NOT_A_CAMERA                
@@ -130,6 +136,7 @@ fromResult BASLER_NO_MORE_SFF_CHUNKS  = c'DC1394_BASLER_NO_MORE_SFF_CHUNKS
 fromResult BASLER_CORRUPTED_SFF_CHUNK = c'DC1394_BASLER_CORRUPTED_SFF_CHUNK  
 fromResult BASLER_UNKNOWN_SFF_CHUNK   = c'DC1394_BASLER_UNKNOWN_SFF_CHUNK  
 
+toResult :: (Eq a, Num a, Show a) => a -> DCResult
 toResult r 
    | r == c'DC1394_SUCCESS                    = SUCCESS                     
    | r == c'DC1394_FAILURE                    = FAILURE                     
@@ -171,6 +178,7 @@ toResult r
    | r == c'DC1394_BASLER_NO_MORE_SFF_CHUNKS  = BASLER_NO_MORE_SFF_CHUNKS   
    | r == c'DC1394_BASLER_CORRUPTED_SFF_CHUNK = BASLER_CORRUPTED_SFF_CHUNK  
    | r == c'DC1394_BASLER_UNKNOWN_SFF_CHUNK   = BASLER_UNKNOWN_SFF_CHUNK  
+   | otherwise = error ("toResult: argument invalid " ++ show r)
 
 data VideoMode = Mode_160x120_YUV444 
      | Mode_320x240_YUV422  
@@ -206,6 +214,7 @@ data VideoMode = Mode_160x120_YUV444
      | Mode_FORMAT7_7 
       deriving (Show,Eq)
 
+fromVideoMode :: Num a => VideoMode -> a
 fromVideoMode Mode_160x120_YUV444 = c'DC1394_VIDEO_MODE_160x120_YUV444  
 fromVideoMode Mode_320x240_YUV422 = c'DC1394_VIDEO_MODE_320x240_YUV422  
 fromVideoMode Mode_640x480_YUV411 = c'DC1394_VIDEO_MODE_640x480_YUV411  
@@ -239,6 +248,7 @@ fromVideoMode Mode_FORMAT7_5 = c'DC1394_VIDEO_MODE_FORMAT7_5
 fromVideoMode Mode_FORMAT7_6 = c'DC1394_VIDEO_MODE_FORMAT7_6  
 fromVideoMode Mode_FORMAT7_7 = c'DC1394_VIDEO_MODE_FORMAT7_7 
 
+toVideoMode :: (Num a, Show a) => VideoMode -> a
 toVideoMode i 
   | i == Mode_160x120_YUV444 = c'DC1394_VIDEO_MODE_160x120_YUV444  
   | i == Mode_320x240_YUV422 = c'DC1394_VIDEO_MODE_320x240_YUV422  
@@ -272,7 +282,8 @@ toVideoMode i
   | i == Mode_FORMAT7_5 = c'DC1394_VIDEO_MODE_FORMAT7_5  
   | i == Mode_FORMAT7_6 = c'DC1394_VIDEO_MODE_FORMAT7_6  
   | i == Mode_FORMAT7_7 = c'DC1394_VIDEO_MODE_FORMAT7_7 
-
+  | otherwise = error ("toVideoMode: argument invalid " ++ show i)
+                 
 data Framerate = Rate_1_875 
      | Rate_3_75  
      | Rate_7_5  
@@ -283,6 +294,7 @@ data Framerate = Rate_1_875
      | Rate_240 
       deriving (Show,Eq)
 
+fromFramerate :: Num a => Framerate -> a
 fromFramerate Rate_1_875 = c'DC1394_FRAMERATE_1_875  
 fromFramerate Rate_3_75 = c'DC1394_FRAMERATE_3_75  
 fromFramerate Rate_7_5 = c'DC1394_FRAMERATE_7_5  
@@ -292,6 +304,7 @@ fromFramerate Rate_60 = c'DC1394_FRAMERATE_60
 fromFramerate Rate_120 = c'DC1394_FRAMERATE_120  
 fromFramerate Rate_240 = c'DC1394_FRAMERATE_240 
 
+toFramerate :: (Num a, Show a) => Framerate -> a
 toFramerate i 
   | i == Rate_1_875 = c'DC1394_FRAMERATE_1_875  
   | i == Rate_3_75 = c'DC1394_FRAMERATE_3_75  
@@ -301,3 +314,4 @@ toFramerate i
   | i == Rate_60 = c'DC1394_FRAMERATE_60  
   | i == Rate_120 = c'DC1394_FRAMERATE_120  
   | i == Rate_240 = c'DC1394_FRAMERATE_240 
+  | otherwise = error ("toFramerate: argument invalid " ++ show i)
