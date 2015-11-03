@@ -5,6 +5,7 @@
 
 module Bindings.DC1394 where
 import Data.Word
+
 #strict_import
 
 -- camera_id_t 
